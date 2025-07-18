@@ -3,6 +3,8 @@
 """
 Application Orange Money - Version simplifiée qui fonctionne
 """
+# Version de l'application (doit correspondre au regex dans buildozer.spec)
+__version__ = "1.0.0"  # <-- Cette ligne doit être présente
 
 from kivy.app import App
 from kivy.lang import Builder
