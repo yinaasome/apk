@@ -52,12 +52,16 @@ jobs:
         buildozer -v android debug
         cp bin/*.apk .
 
-    - name: Upload APK artifact
+    - name: Find APK file
+      run: |
+        echo "APK files in bin/:"
+        ls -la bin/*.apk || echo "No APK found"
+    - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
-        name: Orange-Money-APK
-        path: *.apk
-
+        name: App-APK
+        path: bin/*.apk
+        if: success()
     - name: Create GitHub Release
       if: github.ref == 'refs/heads/main'
       uses: softprops/action-gh-release@v1
