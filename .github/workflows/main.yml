@@ -1,29 +1,53 @@
 name: Build APK with Buildozer
 
 on:
-  push:
-    branches: [ main ]
   workflow_dispatch:
+  push:
+    branches:
+      - main
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    container:
-      image: kivy/buildozer:latest
+
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Install dependencies
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.10
+
+      - name: Install Buildozer dependencies
         run: |
-          apt update
-          apt install -y libffi-dev libssl-dev libsqlite3-dev zlib1g-dev libjpeg-dev
+          sudo apt update
+          sudo apt install -y \
+            build-essential \
+            ccache \
+            git \
+            libncurses5 \
+            libstdc++6 \
+            zlib1g-dev \
+            libffi-dev \
+            libssl-dev \
+            libsqlite3-dev \
+            libjpeg-dev \
+            unzip \
+            openjdk-17-jdk \
+            python3-pip
 
-      - name: Install Buildozer
-        run: pip install buildozer
+      - name: Install Buildozer and Cython
+        run: |
+          pip install --upgrade pip
+          pip install buildozer cython
 
-      - name: Build APK
-        run: buildozer android debug
+      - name: Initialize and Build APK
+        run: |
+          if [ ! -f buildozer.spec ]; then
+            buildozer init
+          fi
+          buildozer android debug
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
