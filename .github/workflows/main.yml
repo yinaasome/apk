@@ -16,34 +16,35 @@ jobs:
 
       - name: Check Python version
         run: python --version
-      - name: Install Buildozer dependencies
+        
+      - name: Install system dependencies
         run: |
-         sudo apt update
-         sudo apt install -y \
-         build-essential \
-         ccache \
-         git \
-         libncurses6 \
-         libstdc++6 \
-         zlib1g-dev \
-         libffi-dev \
-         libssl-dev \
-         libsqlite3-dev \
-         libjpeg-dev \
-         unzip \
-         openjdk-17-jdk \
-         python3-pip
+          sudo apt update
+          sudo apt install -y \
+            build-essential \
+            ccache \
+            libncurses6 \
+            libstdc++6 \
+            zlib1g-dev \
+            libffi-dev \
+            libssl-dev \
+            libsqlite3-dev \
+            libjpeg-dev \
+            unzip \
+            openjdk-17-jdk \
+            python3-pip \
+            wget
 
       - name: Install Buildozer and Cython
         run: |
           pip install --upgrade pip
           pip install buildozer cython
           
-      - name: Accept Android SDK licenses
+      - name: Install Android SDK and accept licenses
         run: |
-          mkdir -p ~/.android
-          echo '### User Agreements accepted by GitHub Actions' > ~/.android/repositories.cfg
-          yes | buildozer android update
+          mkdir -p $HOME/.android
+          touch $HOME/.android/repositories.cfg
+          yes | sdkmanager --licenses || true
 
       - name: Initialize and Build APK
         run: |
