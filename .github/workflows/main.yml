@@ -12,20 +12,21 @@ jobs:
       image: kivy/buildozer:latest
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Install dependencies
         run: |
           apt update
           apt install -y libffi-dev libssl-dev libsqlite3-dev zlib1g-dev libjpeg-dev
 
-      - name: Build APK
-        run: |
-          pip install buildozer
-          buildozer android debug
+      - name: Install Buildozer
+        run: pip install buildozer
 
-      - name: Upload APK
-        uses: actions/upload-artifact@v3
+      - name: Build APK
+        run: buildozer android debug
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
         with:
           name: mobilemoney-apk
           path: bin/*.apk
