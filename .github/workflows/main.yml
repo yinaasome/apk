@@ -18,21 +18,21 @@ jobs:
         run: python --version
       - name: Install Buildozer dependencies
         run: |
-          sudo apt update
-          sudo apt install -y \
-            build-essential \
-            ccache \
-            git \
-            libncurses5 \
-            libstdc++6 \
-            zlib1g-dev \
-            libffi-dev \
-            libssl-dev \
-            libsqlite3-dev \
-            libjpeg-dev \
-            unzip \
-            openjdk-17-jdk \
-            python3-pip
+         sudo apt update
+         sudo apt install -y \
+         build-essential \
+         ccache \
+         git \
+         libncurses6 \
+         libstdc++6 \
+         zlib1g-dev \
+         libffi-dev \
+         libssl-dev \
+         libsqlite3-dev \
+         libjpeg-dev \
+         unzip \
+         openjdk-17-jdk \
+         python3-pip
 
       - name: Install Buildozer and Cython
         run: |
