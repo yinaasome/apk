@@ -9,11 +9,16 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-
+    
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
-
+        
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          
       - name: Check Python version
         run: python --version
         
@@ -33,36 +38,92 @@ jobs:
             unzip \
             openjdk-17-jdk \
             python3-pip \
-            wget
-
-      - name: Install Buildozer and Cython
+            wget \
+            git \
+            autoconf \
+            automake \
+            libtool \
+            pkg-config
+            
+      - name: Install Buildozer and dependencies
         run: |
           pip install --upgrade pip
           pip install buildozer cython
           
-      - name: Install Android SDK and accept licenses manually
+      - name: Set up Android SDK
         run: |
-          mkdir -p ${HOME}/cmdline-tools
-          cd ${HOME}/cmdline-tools
-          wget https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip -O tools.zip
-          unzip tools.zip
-          mkdir -p ${HOME}/android-sdk/cmdline-tools/latest
-          mv cmdline-tools/* ${HOME}/android-sdk/cmdline-tools/latest
-          export ANDROID_HOME=${HOME}/android-sdk
-          export PATH=${ANDROID_HOME}/cmdline-tools/latest/bin:${ANDROID_HOME}/platform-tools:${PATH}
-          yes | sdkmanager --sdk_root=${ANDROID_HOME} --licenses
-          sdkmanager --sdk_root=${ANDROID_HOME} "platform-tools" "platforms;android-31" "build-tools;34.0.0"
-
-
-      - name: Initialize and Build APK
+          # Créer les répertoires nécessaires
+          mkdir -p $HOME/.android
+          mkdir -p $HOME/.buildozer/android/platform
+          
+          # Créer le fichier repositories.cfg
+          touch $HOME/.android/repositories.cfg
+          
+          # Définir les variables d'environnement
+          export ANDROID_SDK_ROOT=$HOME/.buildozer/android/platform/android-sdk
+          export ANDROID_HOME=$ANDROID_SDK_ROOT
+          export PATH=$PATH:$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools
+          
+          # Télécharger et installer Android SDK Command Line Tools
+          cd $HOME/.buildozer/android/platform
+          wget https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
+          unzip commandlinetools-linux-11076708_latest.zip
+          mkdir -p android-sdk/cmdline-tools
+          mv cmdline-tools android-sdk/cmdline-tools/latest
+          
+          # Accepter les licences et installer les packages nécessaires
+          cd android-sdk/cmdline-tools/latest/bin
+          yes | ./sdkmanager --licenses
+          ./sdkmanager "platform-tools" "platforms;android-33" "build-tools;33.0.2"
+          
+      - name: Cache Buildozer global directory
+        uses: actions/cache@v3
+        with:
+          path: ~/.buildozer
+          key: buildozer-${{ runner.os }}-${{ hashFiles('buildozer.spec') }}
+          restore-keys: |
+            buildozer-${{ runner.os }}-
+            
+      - name: Cache Buildozer dependencies
+        uses: actions/cache@v3
+        with:
+          path: .buildozer
+          key: buildozer-deps-${{ runner.os }}-${{ hashFiles('buildozer.spec') }}
+          restore-keys: |
+            buildozer-deps-${{ runner.os }}-
+            
+      - name: Initialize Buildozer
         run: |
           if [ ! -f buildozer.spec ]; then
             buildozer init
           fi
+          
+      - name: Configure Buildozer spec
+        run: |
+          # Modifier buildozer.spec pour utiliser les bonnes versions
+          sed -i 's/^#android.api = .*/android.api = 33/' buildozer.spec || echo "android.api = 33" >> buildozer.spec
+          sed -i 's/^#android.minapi = .*/android.minapi = 21/' buildozer.spec || echo "android.minapi = 21" >> buildozer.spec
+          sed -i 's/^#android.ndk = .*/android.ndk = 25b/' buildozer.spec || echo "android.ndk = 25b" >> buildozer.spec
+          sed -i 's/^#android.sdk = .*/android.sdk = 33/' buildozer.spec || echo "android.sdk = 33" >> buildozer.spec
+          
+      - name: Build APK
+        run: |
+          export ANDROID_SDK_ROOT=$HOME/.buildozer/android/platform/android-sdk
+          export ANDROID_HOME=$ANDROID_SDK_ROOT
+          export PATH=$PATH:$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools
           buildozer android debug
-
+          
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: mobilemoney-apk
           path: bin/*.apk
+          if-no-files-found: error
+          
+      - name: List generated files (debug)
+        if: always()
+        run: |
+          echo "Contenu du répertoire bin:"
+          ls -la bin/ || echo "Le répertoire bin n'existe pas"
+          echo "Structure du projet:"
+          find . -name "*.apk" -type f
