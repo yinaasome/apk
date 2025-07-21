@@ -19,9 +19,12 @@ jobs:
         with:
           python-version: '3.11'
           
-      - name: Check Python version
-        run: python --version
-        
+      - name: Set up Java 17
+        uses: actions/setup-java@v3
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          
       - name: Install system dependencies
         run: |
           sudo apt update
@@ -36,7 +39,6 @@ jobs:
             libsqlite3-dev \
             libjpeg-dev \
             unzip \
-            openjdk-17-jdk \
             python3-pip \
             wget \
             git \
@@ -50,37 +52,44 @@ jobs:
           pip install --upgrade pip
           pip install buildozer cython
           
-      - name: Set up Android SDK
+      - name: Setup Android SDK manually
         run: |
           # Créer les répertoires nécessaires
           mkdir -p $HOME/.android
           mkdir -p $HOME/.buildozer/android/platform
-          
-          # Créer le fichier repositories.cfg
           touch $HOME/.android/repositories.cfg
           
-          # Télécharger et installer Android SDK Command Line Tools
+          # Télécharger et configurer Android SDK Command Line Tools
           cd $HOME/.buildozer/android/platform
           wget https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
           unzip commandlinetools-linux-11076708_latest.zip
           
-          # Créer la structure attendue par Buildozer
+          # Créer la structure SDK
           mkdir -p android-sdk/cmdline-tools
           mv cmdline-tools android-sdk/cmdline-tools/latest
           
-          # Créer aussi l'ancien répertoire tools/bin pour la compatibilité
+          # IMPORTANT: Créer la structure tools/bin que Buildozer attend
           mkdir -p android-sdk/tools/bin
+          
+          # Copier sdkmanager dans l'ancien chemin pour Buildozer
           cp android-sdk/cmdline-tools/latest/bin/sdkmanager android-sdk/tools/bin/
+          cp android-sdk/cmdline-tools/latest/bin/avdmanager android-sdk/tools/bin/
           
           # Définir les variables d'environnement
           export ANDROID_SDK_ROOT=$HOME/.buildozer/android/platform/android-sdk
           export ANDROID_HOME=$ANDROID_SDK_ROOT
-          export PATH=$PATH:$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools:$ANDROID_SDK_ROOT/tools/bin
           
-          # Accepter les licences et installer les packages nécessaires
+          # Accepter les licences et installer les packages
           cd android-sdk/cmdline-tools/latest/bin
-          yes | ./sdkmanager --licenses
-          ./sdkmanager "platform-tools" "platforms;android-33" "build-tools;33.0.2" "cmdline-tools;latest"
+          yes | ./sdkmanager --sdk_root=$ANDROID_SDK_ROOT --licenses
+          ./sdkmanager --sdk_root=$ANDROID_SDK_ROOT "platform-tools" "platforms;android-33" "build-tools;33.0.2"
+          
+      - name: Download and setup Android NDK
+        run: |
+          cd $HOME/.buildozer/android/platform
+          wget https://dl.google.com/android/repository/android-ndk-r25c-linux.zip
+          unzip android-ndk-r25c-linux.zip
+          mv android-ndk-r25c android-ndk-r25c
           
       - name: Cache Buildozer global directory
         uses: actions/cache@v3
@@ -106,21 +115,49 @@ jobs:
           
       - name: Configure Buildozer spec
         run: |
-          # Modifier buildozer.spec pour utiliser les bonnes versions
-          sed -i 's/^#android.api = .*/android.api = 33/' buildozer.spec || echo "android.api = 33" >> buildozer.spec
-          sed -i 's/^#android.minapi = .*/android.minapi = 21/' buildozer.spec || echo "android.minapi = 21" >> buildozer.spec
-          sed -i 's/^#android.ndk = .*/android.ndk = 25b/' buildozer.spec || echo "android.ndk = 25b" >> buildozer.spec
-          sed -i 's/^#android.sdk = .*/android.sdk = 33/' buildozer.spec || echo "android.sdk = 33" >> buildozer.spec
+          # Configuration pour utiliser le SDK local
+          sed -i 's/^#android.api = .*/android.api = 33/' buildozer.spec
+          sed -i 's/^#android.minapi = .*/android.minapi = 21/' buildozer.spec
+          sed -i 's/^#android.ndk = .*/android.ndk = 25c/' buildozer.spec
+          sed -i 's/^#android.sdk = .*/android.sdk = 33/' buildozer.spec
+          sed -i 's/^#android.accept_sdk_license = .*/android.accept_sdk_license = True/' buildozer.spec
+          
+          # Ajouter les chemins personnalisés si pas déjà présents
+          if ! grep -q "android.sdk_path" buildozer.spec; then
+            echo "android.sdk_path = $HOME/.buildozer/android/platform/android-sdk" >> buildozer.spec
+          fi
+          if ! grep -q "android.ndk_path" buildozer.spec; then
+            echo "android.ndk_path = $HOME/.buildozer/android/platform/android-ndk-r25c" >> buildozer.spec
+          fi
+          
+      - name: Verify SDK setup
+        run: |
+          echo "=== Vérification de la configuration SDK ==="
+          export ANDROID_SDK_ROOT=$HOME/.buildozer/android/platform/android-sdk
+          export ANDROID_HOME=$ANDROID_SDK_ROOT
+          
+          echo "ANDROID_SDK_ROOT: $ANDROID_SDK_ROOT"
+          echo "Structure du SDK:"
+          ls -la $ANDROID_SDK_ROOT/ || echo "SDK root non trouvé"
+          
+          echo "Vérification tools/bin:"
+          ls -la $ANDROID_SDK_ROOT/tools/bin/ || echo "tools/bin non trouvé"
+          
+          echo "Vérification cmdline-tools:"
+          ls -la $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/ || echo "cmdline-tools non trouvé"
+          
+          echo "Test sdkmanager:"
+          $ANDROID_SDK_ROOT/tools/bin/sdkmanager --version || echo "sdkmanager non fonctionnel"
+          
+          echo "Contenu de buildozer.spec:"
+          cat buildozer.spec | grep android
           
       - name: Build APK
         run: |
           export ANDROID_SDK_ROOT=$HOME/.buildozer/android/platform/android-sdk
           export ANDROID_HOME=$ANDROID_SDK_ROOT
+          export ANDROID_NDK_HOME=$HOME/.buildozer/android/platform/android-ndk-r25c
           export PATH=$PATH:$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools:$ANDROID_SDK_ROOT/tools/bin
-          
-          # Vérifier que sdkmanager est accessible
-          which sdkmanager || echo "sdkmanager introuvable dans PATH"
-          ls -la $ANDROID_SDK_ROOT/tools/bin/sdkmanager || echo "sdkmanager introuvable dans tools/bin"
           
           buildozer android debug
           
@@ -136,5 +173,5 @@ jobs:
         run: |
           echo "Contenu du répertoire bin:"
           ls -la bin/ || echo "Le répertoire bin n'existe pas"
-          echo "Structure du projet:"
+          echo "Recherche d'APK:"
           find . -name "*.apk" -type f
