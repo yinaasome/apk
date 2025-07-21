@@ -20,7 +20,7 @@ version = 1.0
 
 # (list) Application requirements
 # comma separated e.g. requirements = sqlite3,kivy
-requirements = python3,kivy,sqlite3
+requirements = python3,kivy,sqlite3,hashlib,pandas,numpy,matplotlib.pyplot
 
 # (str) Presplash of the application
 #presplash.filename = %(source.dir)s/data/presplash.png
